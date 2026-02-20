@@ -1,7 +1,10 @@
 aralinks/
+ |---assets
+       |---images
+ |---quizzes
+       |---quiz.php
+       |---process.php
  ├── index.php
- ├── quiz.php
- ├── process.php
  ├── voucher.php
  ├── success.php
  ├── db.php
