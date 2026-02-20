@@ -2,14 +2,14 @@
 <html>
 <head>
 <title>Responsible Netizen Quiz</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../style.css">
 </head>
 <body>
 
 <div class="box">
 <h3>Answer correctly to access WiFi</h3>
 
-<form action="process.php" method="post">
+<form action="../process.php" method="post">
 
 <p>1. What should you do before sharing information online?</p>
 <input type="radio" name="q1" value="a"> Verify if it is true<br>
