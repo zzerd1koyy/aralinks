@@ -80,34 +80,34 @@ $result = $stmt->get_result();
 if ($result->num_rows > 0) {
     $row = $result->fetch_assoc();
     $duration = $row['duration'];
-    
+
     // Mark voucher as used (with MAC and IP for tracking)
     $update_stmt = $conn->prepare("UPDATE vouchers SET used = 1, used_by_mac = ?, used_by_ip = ?, used_at = NOW() WHERE code = ?");
-    
+
     if (!$update_stmt) {
         logAccess("DATABASE_ERROR", "Update prepare failed: " . $conn->error, $ip, 'ERROR');
         die("<h2>System Error</h2><p>Database error occurred. Please try again later.</p>");
     }
-    
+
     $update_stmt->bind_param("sss", $mac, $ip, $code);
-    
+
     if (!$update_stmt->execute()) {
         logAccess("DATABASE_ERROR", "Update execute failed: " . $update_stmt->error, $ip, 'ERROR');
         die("<h2>System Error</h2><p>Database error occurred. Please try again later.</p>");
     }
-    
+
     logAccess("VOUCHER_REDEEMED", "Duration: {$duration} min | MAC: $mac", $ip);
-    
+
     // Authorize device in MikroTik if MAC provided
     $mac = $_SESSION['mac'] ?? '';
     if (!empty($mac)) {
-        authorizeInMikroTik($mac, $ip);
+        authorizeInMikroTik($mac, $ip, $duration, 'voucher');
     }
-    
+
     // Redirect to success page
-    header("Location: success.php?time=" . urlencode($duration) . "&type=voucher");
+    header("Location: quizzes/success.php?time=" . urlencode($duration) . "&type=voucher");
     exit;
-    
+
 } else {
     logAccess("VOUCHER_VALIDATION_ERROR", "Invalid or used voucher: $code", $ip);
     $response = [
@@ -125,29 +125,51 @@ $stmt->close();
 /**
  * Authorize device in MikroTik RouterOS
  */
-function authorizeInMikroTik($mac, $ip) {
+function authorizeInMikroTik($mac, $ip, $minutes, $source = 'voucher')
+{
+    $minutes = max(1, intval($minutes));
     $socket = @fsockopen(MIKROTIK_IP, MIKROTIK_PORT, $errno, $errstr, MIKROTIK_TIMEOUT);
-    
+
     if (!$socket) {
         logAccess("MIKROTIK_ERROR", "Connection failed: $errstr ($errno)", $ip, 'WARNING');
         return false;
     }
-    
+
     try {
         // Send login command
         fwrite($socket, "/login\n");
         fwrite($socket, "=name=" . MIKROTIK_USER . "\n");
         fwrite($socket, "=password=" . MIKROTIK_PASS . "\n\n");
-        
-        // Add MAC bypass
+
+        // Add MAC bypass that will be removed after voucher duration.
+        $expiresAt = time() + ($minutes * 60);
+        $expiryStamp = date('YmdHis', $expiresAt);
+        $bindingComment = "aralinks_{$source}_{$mac}_{$expiryStamp}";
+        $schedulerName = "aralinks_expire_{$source}_" . preg_replace('/[^A-Za-z0-9]/', '', $mac) . "_{$expiryStamp}";
+        $schedulerDate = date('M/d/Y', $expiresAt);
+        $schedulerTime = date('H:i:s', $expiresAt);
+        $onEvent = '/ip/hotspot/ip-binding/remove [find where comment=\"' . $bindingComment . '\"]; /system/scheduler/remove [find where name=\"' . $schedulerName . '\"]';
+
+        // Remove existing binding for this MAC before granting a fresh timed session.
+        fwrite($socket, "/ip/hotspot/ip-binding/remove\n");
+        fwrite($socket, "=.id=[find where mac-address=$mac]\n\n");
+
+        // Add current timed bypass.
         fwrite($socket, "/ip/hotspot/ip-binding/add\n");
         fwrite($socket, "=mac-address=$mac\n");
         fwrite($socket, "=address=$ip\n");
         fwrite($socket, "=type=bypassed\n");
-        fwrite($socket, "=comment=voucher-redeemed\n\n");
-        
-        logAccess("MIKROTIK_AUTH_SUCCESS", "MAC: $mac", $ip);
-        
+        fwrite($socket, "=comment=$bindingComment\n\n");
+
+        // Schedule automatic removal at exact expiry.
+        fwrite($socket, "/system/scheduler/add\n");
+        fwrite($socket, "=name=$schedulerName\n");
+        fwrite($socket, "=start-date=$schedulerDate\n");
+        fwrite($socket, "=start-time=$schedulerTime\n");
+        fwrite($socket, "=on-event=$onEvent\n\n");
+
+        logAccess("MIKROTIK_AUTH_SUCCESS", "MAC: $mac | Minutes: $minutes | Expires: $schedulerDate $schedulerTime", $ip);
+
     } catch (Exception $e) {
         logAccess("MIKROTIK_ERROR", $e->getMessage(), $ip, 'WARNING');
     } finally {

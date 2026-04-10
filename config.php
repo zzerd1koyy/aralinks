@@ -11,16 +11,23 @@ define('DB_PASS', '');
 define('DB_NAME', 'aralinks');
 
 // MikroTik Router Configuration
-define('MIKROTIK_IP', '192.168.40.177');
-define('MIKROTIK_USER', 'ComonHS');
-define('MIKROTIK_PASS', '@comonhs.mikrotik');
+define('MIKROTIK_IP', '192.168.40.219');
+define('MIKROTIK_USER', 'aralinks');
+define('MIKROTIK_PASS', 'aralinksbydikoy');
 define('MIKROTIK_PORT', 8728);
 define('MIKROTIK_TIMEOUT', 3);
 
 // Quiz Configuration
-define('QUIZ_QUESTIONS_COUNT', 5);
-define('QUIZ_PASS_PERCENTAGE', 0.8); // 80% (4 out of 5 questions)
-define('QUIZ_ACCESS_TIME_MINUTES', 60);
+define('QUIZ_QUESTIONS_COUNT', 10);
+define('QUIZ_MINUTES_PER_CORRECT_ANSWER', 12);
+
+// Offline Library
+define('OFFLINE_LIBRARY_URL', 'http://192.168.40.1/library');
+
+// Quiz-to-MikroTik Username Mapping
+define('QUIZ_HOTSPOT_USER_SUFFIX', 'aralinks_zeke');
+define('QUIZ_HOTSPOT_MAX_CORRECT', 10);
+define('QUIZ_HOTSPOT_SHARED_USERS', 100);
 
 // Voucher Configuration
 define('MAX_VOUCHER_ATTEMPTS', 5); // Max attempts before rate limiting

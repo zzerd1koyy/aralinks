@@ -253,7 +253,7 @@ $questions = [
     ]
 ];
 
-// Select 5 random questions for this session
+// Select random questions for this session based on configured count
 if (!isset($_SESSION['quiz_questions'])) {
     shuffle($questions);
     $_SESSION['quiz_questions'] = array_slice($questions, 0, QUIZ_QUESTIONS_COUNT);
@@ -276,17 +276,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['current']++;
 
     if ($_SESSION['current'] >= $totalQuestions) {
-        // Calculate pass based on percentage threshold
-        $required_correct = ceil($totalQuestions * QUIZ_PASS_PERCENTAGE);
-        $passed = ($_SESSION['score'] >= $required_correct) ? 1 : 0;
-        
         $score = $_SESSION['score'];
         $total = $totalQuestions;
-        
-        logAccess("QUIZ_COMPLETED", "Score: $score/$total (Required: $required_correct)", $ip);
-        
-        session_destroy();
-        header("Location: process.php?passed=" . $passed . "&score=" . $score . "&total=" . $total);
+        $allocatedMinutes = $score * QUIZ_MINUTES_PER_CORRECT_ANSWER;
+
+        logAccess("QUIZ_COMPLETED", "Score: $score/$total | Allocated: {$allocatedMinutes} minutes", $ip);
+
+        // Keep IP/MAC session values for process.php and clear quiz-only session state
+        unset($_SESSION['quiz_questions'], $_SESSION['current'], $_SESSION['score']);
+        header("Location: process.php?score=" . $score . "&total=" . $total);
         exit;
     } else {
         $current = $_SESSION['current'];
@@ -298,6 +296,7 @@ $question = $_SESSION['quiz_questions'][$current];
 
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -310,7 +309,7 @@ $question = $_SESSION['quiz_questions'][$current];
             padding: 30px;
             border-radius: 12px;
             background: #ffffff;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             font-family: Arial, sans-serif;
             color: black;
         }
@@ -380,7 +379,7 @@ $question = $_SESSION['quiz_questions'][$current];
             display: none;
         }
 
-        input[type="radio"]:checked + .option-label {
+        input[type="radio"]:checked+.option-label {
             border-color: #007bff;
             background-color: #007bff;
             color: white;
@@ -475,35 +474,38 @@ $question = $_SESSION['quiz_questions'][$current];
 </head>
 
 <body>
-<div class="outer-box">
-    <h3>📚 Internet Advocacy Quiz</h3>
-    <p class="subtitle">Answer correctly to gain free WiFi access</p>
+    <div class="outer-box">
+        <h3>📚 Internet Advocacy Quiz</h3>
+        <p class="subtitle">10 questions total. Each correct answer earns <?php echo QUIZ_MINUTES_PER_CORRECT_ANSWER; ?>
+            minutes.</p>
 
-    <div class="progress-text">Question <?php echo $current + 1; ?> of <?php echo $totalQuestions; ?></div>
-    <div class="progress-bar">
-        <div class="progress-fill" style="width: <?php echo (($current + 1) / $totalQuestions) * 100; ?>%"></div>
-    </div>
-
-    <form method="post">
-        <!-- Inner Question Box -->
-        <div class="question-box">
-            <p class="question-text"><?php echo htmlspecialchars($question['question']); ?></p>
-
-            <?php foreach ($question['options'] as $index => $option): ?>
-                <input type="radio" id="option<?php echo $index; ?>" name="answer" value="<?php echo htmlspecialchars($option); ?>" required>
-                <label class="option-label" for="option<?php echo $index; ?>">
-                    <?php echo htmlspecialchars($option); ?>
-                </label>
-            <?php endforeach; ?>
+        <div class="progress-text">Question <?php echo $current + 1; ?> of <?php echo $totalQuestions; ?></div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: <?php echo (($current + 1) / $totalQuestions) * 100; ?>%"></div>
         </div>
 
-        <button type="submit" class="btn-submit">Next Question</button>
-    </form>
+        <form method="post">
+            <!-- Inner Question Box -->
+            <div class="question-box">
+                <p class="question-text"><?php echo htmlspecialchars($question['question']); ?></p>
 
-    <div class="back-link">
-        <a href="../index.php">← Cancel Quiz</a>
+                <?php foreach ($question['options'] as $index => $option): ?>
+                    <input type="radio" id="option<?php echo $index; ?>" name="answer"
+                        value="<?php echo htmlspecialchars($option); ?>" required>
+                    <label class="option-label" for="option<?php echo $index; ?>">
+                        <?php echo htmlspecialchars($option); ?>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+
+            <button type="submit" class="btn-submit">Next Question</button>
+        </form>
+
+        <div class="back-link">
+            <a href="../index.php">← Cancel Quiz</a>
+        </div>
     </div>
-</div>
 
 </body>
+
 </html>
